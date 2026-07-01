@@ -48,9 +48,10 @@ func take_damage(damage: int = 1) -> void:
 		return
 	current_hp -= damage
 	if current_hp <= 0:
-		# 销毁时传出位置 + 类型，让 Main 生成对应颜色的粒子
-		destroyed.emit(self, score_value, global_position, brick_type)
+		# M10 修复：先 queue_free 再 emit destroyed，让监听方能在 child count 检查时
+		# 把当前 brick 也算作"已销毁"，避免最后一个砖 destroy 时 alive_count=1 而漏判
 		queue_free()
+		destroyed.emit(self, score_value, global_position, brick_type)
 	else:
 		_flash_white()
 		damaged.emit(self, current_hp)

@@ -11,7 +11,7 @@ signal replay_requested
 signal next_level_requested
 signal revive_requested
 
-const VERSION_LABEL: String = "v0.9.0"
+const VERSION_LABEL: String = "v0.10.0"
 
 @onready var _score_value: Label = $TopBar/ScorePanel/ScoreValue
 @onready var _time_value: Label = $TopBar/TimePanel/TimeValue
@@ -87,22 +87,22 @@ func _on_level_changed(new_level: int) -> void:
 
 
 func _on_game_over(final_score: int, reached_level: int) -> void:
-	_game_over_title.text = "GAME OVER"
-	_game_over_score.text = "Final Score: %d  ·  Level: %d" % [final_score, reached_level]
+	_game_over_title.text = "游戏结束"
+	_game_over_score.text = "最终得分：%d  ·  第 %d 关" % [final_score, reached_level]
 	_game_over_panel.visible = true
 
 
 func _on_level_clear(level: int, score_at_clear: int) -> void:
 	var title_label: Label = $LevelClearPanel/VBox/Title
-	title_label.text = "LEVEL %d CLEAR!" % level
+	title_label.text = "第 %d 关 通关！" % level
 	var score_label: Label = $LevelClearPanel/VBox/ScoreText
-	score_label.text = "Score: %d" % score_at_clear
+	score_label.text = "得分：%d" % score_at_clear
 	_level_clear_panel.visible = true
 
 
 func _on_game_won(final_score: int) -> void:
-	_game_over_title.text = "🏆 YOU WIN!"
-	_game_over_score.text = "All levels cleared! Final Score: %d" % final_score
+	_game_over_title.text = "🏆 全部通关！"
+	_game_over_score.text = "最终得分：%d" % final_score
 	_game_over_panel.visible = true
 	_level_clear_panel.visible = false
 
@@ -117,13 +117,13 @@ func _on_revive_pressed() -> void:
 	SoundManager.play_sfx("click")
 	# 禁用按钮防止重复点击
 	_revive_button.disabled = true
-	_revive_button.text = "Loading..."
+	_revive_button.text = "加载中..."
 	WXAdapter.request_revive()
 
 
 func _on_revive_completed(success: bool) -> void:
 	_revive_button.disabled = false
-	_revive_button.text = "REVIVE"
+	_revive_button.text = "看广告 复活"
 	if success:
 		# 复活成功：通知 Main 处理（球重置 + 加命 + 隐藏面板）
 		_game_over_panel.visible = false

@@ -31,6 +31,7 @@ const BALL_SCENE: PackedScene = preload("res://scenes/ball.tscn")  ## M8：用 i
 
 var _level_loader: LevelLoader = LevelLoader.new()
 var _bricks_remaining: int = 0
+var _level_clear_emitted: bool = false  ## M10: 关卡通关信号已发送标记，防 bug 1 后剩余砖块继续清完重复触发
 var balls: Array[CharacterBody2D] = []  ## 所有活球（MULTI/DOUBLE 技能产生多个）
 const MAX_BALLS: int = 50  ## 多球上限（M8 用户要求：DOUBLE_BALLS 翻倍后最多 50 个）
 
@@ -115,6 +116,7 @@ func _clear_level() -> void:
 	for child in level_container.get_children():
 		child.queue_free()
 	_bricks_remaining = 0
+	_level_clear_emitted = false  ## M10: 加载新关卡时重置清关标志
 
 
 # === 信号回调 ===
@@ -170,14 +172,41 @@ func _on_ball_lost(lost_ball: CharacterBody2D) -> void:
 
 func _on_brick_destroyed(brick: StaticBody2D, score: int, position: Vector2, brick_type: int) -> void:
 	GameManager.add_score(score)
-	_bricks_remaining -= 1
-	# M5: 砖块销毁粒子特效
-	var brick_color: Color = BrickConfig.get_color(brick_type)
-	BrickParticles.spawn(position, brick_color, self)
-	# M6: PowerUp 掉落（按 brick_type 概率）
+	# M9: 改用 child count 检查，不再依赖 _bricks_remaining 计数
+	# （之前 _bricks_remaining 可能因多次信号触发或 UNBREAKABLE 干扰导致提前归零，
+	#  切关后再加载新关卡也会因 loader 计数偏差导致关卡 2 永远清不完）
+	BrickParticles.spawn(position, BrickConfig.get_color(brick_type), self)
 	_maybe_spawn_powerup(position, brick_type)
-	if _bricks_remaining <= 0:
+	_check_level_clear()
+
+
+## M9: 检查 level_container 实际剩余的可消除砖块（排除 UNBREAKABLE 墙）
+## 用 child count 而非计数器，避免信号重复触发或初始化偏差导致的提前/延后触发
+func _check_level_clear() -> void:
+	if _level_clear_emitted:
+		return  ## M10: 本关已触发过 level_clear，防止 bug 1 后剩余砖块继续被清完时重复触发
+	var alive_count: int = 0
+	for child in level_container.get_children():
+		if child.is_queued_for_deletion():
+			continue  ## M10: queue_free 是延迟的，跳过已标记删除的（避免同帧多次 take_damage 误判）
+		if child.has_method("take_damage") and "brick_type" in child:
+			if int(child.brick_type) != BrickConfig.TYPE_UNBREAKABLE:
+				alive_count += 1
+	if alive_count == 0:
+		_level_clear_emitted = true
 		GameManager.level_cleared()
+
+
+## 调试用：统计 level_container 里仍存活的砖块（未 queue_free）
+func _count_alive_bricks() -> int:
+	var n: int = 0
+	for child in level_container.get_children():
+		if child.is_queued_for_deletion():
+			continue
+		if child.has_method("take_damage") and "brick_type" in child:
+			if int(child.brick_type) != BrickConfig.TYPE_UNBREAKABLE:
+				n += 1
+	return n
 
 
 ## 按概率生成 PowerUp（M8 重构：3 种 + 全部绿色）
@@ -343,6 +372,43 @@ func _handle_cli_shortcuts() -> void:
 		GameManager.lives = 1  # 只剩 1 条
 		GameManager.lives_changed.emit(1)
 		GameManager.lose_life()  # 触发 Game Over
+	if "--test-bug1-bug2" in args:
+		# M10 测试：清完所有砖，验证 level_clear 只触发 1 次（不重复触发 game_won）
+		await get_tree().create_timer(0.3).timeout
+		var cleared_count: Array[int] = [0]
+		var won: Array[bool] = [false]
+		GameManager.level_clear.connect(func(level, _s):
+			cleared_count[0] += 1
+			print("[M10 Test] >>> level_clear signal! level=%d, total=%d" % [level, cleared_count[0]])
+		)
+		GameManager.game_won.connect(func(_s):
+			won[0] = true
+			print("[M10 Test] >>> game_won signal!")
+		)
+		var bricks: Array = level_container.get_children().filter(
+			func(c): return c.has_method("take_damage") and int(c.brick_type) != BrickConfig.TYPE_UNBREAKABLE
+		)
+		print("[M10 Test] bricks: %d" % bricks.size())
+		# === 阶段 1: 清前 1135 个（剩 5 个，模拟 bug 1 提前弹窗场景）===
+		for i in range(1135):
+			bricks[i].take_damage(999)
+		await get_tree().process_frame  # 等 level_clear 触发
+		print("[M10 Test] 阶段 1 完成：cleared_count=%d, current_level=%d (expected: 1, 1 - 还没清完)" % [
+			cleared_count[0], GameManager.current_level
+		])
+		print("[M10 Test] alive=%d (expected: 5)" % _count_alive_bricks())
+		# === 阶段 2: 清掉剩余 5 个（bug 1 后用户继续清完剩余砖）===
+		for i in range(1135, bricks.size()):
+			bricks[i].take_damage(999)
+		await get_tree().process_frame
+		await get_tree().process_frame
+		print("[M10 Test] 阶段 2 完成：cleared_count=%d (expected: 1), won=%s (expected: false)" % [
+			cleared_count[0], str(won[0])
+		])
+		print("[M10 Test] >>> current_level: %d (expected: 2)" % GameManager.current_level)
+		print("[M10 Test] >>> is_game_over: %s (expected: false)" % str(GameManager.is_game_over))
+		await get_tree().process_frame
+		get_tree().quit()
 	if "--test-powerups" in args:
 		# M8 测试：1 秒后强制 spawn 3 种 PowerUp，1.5 秒后截图（不发射球、不掉砖）
 		await get_tree().create_timer(1.0).timeout

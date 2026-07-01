@@ -96,14 +96,14 @@ mouse_filter = 2
 size_flags_horizontal = 4
 theme_override_styles/normal = SubResource("SB_button_primary")
 theme_override_font_sizes/font_size = 26
-text = "WATCH AD · REVIVE"
+text = "看广告 复活"
 mouse_filter = 0
 
 [node name="ReplayButton" type="Button" parent="GameOverPanel/VBox"]
 size_flags_horizontal = 4
 theme_override_styles/normal = SubResource("SB_button_secondary")
 theme_override_font_sizes/font_size = 26
-text = "PLAY AGAIN"
+text = "重新开始"
 mouse_filter = 0
 
 [node name="LevelClearPanel" type="Control" parent="."]
@@ -126,13 +126,13 @@ anchor_bottom = 0.9
 theme_override_constants/separation = 20
 
 [node name="Title" type="Label" parent="LevelClearPanel/VBox"]
-text = "LEVEL CLEAR!"
+text = "通关！"
 label_settings = SubResource("LS_title")
 horizontal_alignment = 1
 mouse_filter = 2
 
 [node name="ScoreText" type="Label" parent="LevelClearPanel/VBox"]
-text = "Score: 0"
+text = "得分：0"
 label_settings = SubResource("LS_body")
 horizontal_alignment = 1
 mouse_filter = 2
@@ -141,14 +141,14 @@ mouse_filter = 2
 size_flags_horizontal = 4
 theme_override_styles/normal = SubResource("SB_button_primary")
 theme_override_font_sizes/font_size = 26
-text = "NEXT LEVEL"
+text = "下一关"
 mouse_filter = 0
 
 [node name="ShareButton" type="Button" parent="LevelClearPanel/VBox"]
 size_flags_horizontal = 4
 theme_override_styles/normal = SubResource("SB_button_share")
 theme_override_font_sizes/font_size = 26
-text = "SHARE"
+text = "分享"
 mouse_filter = 0
 
 [node name="TopBar" type="Control" parent="."]
@@ -170,7 +170,7 @@ offset_bottom = 95.0
 mouse_filter = 2
 
 [node name="ScoreLabel" type="Label" parent="TopBar/ScorePanel"]
-text = "SCORE"
+text = "得分"
 label_settings = SubResource("LS_top_label")
 horizontal_alignment = 1
 mouse_filter = 2
@@ -189,7 +189,7 @@ offset_bottom = 95.0
 mouse_filter = 2
 
 [node name="TimeLabel" type="Label" parent="TopBar/TimePanel"]
-text = "TIME"
+text = "时间"
 label_settings = SubResource("LS_top_label")
 horizontal_alignment = 1
 mouse_filter = 2
@@ -208,7 +208,7 @@ offset_bottom = 95.0
 mouse_filter = 2
 
 [node name="LevelLabel" type="Label" parent="TopBar/LevelPanel"]
-text = "LEVEL"
+text = "关卡"
 label_settings = SubResource("LS_top_label")
 horizontal_alignment = 1
 mouse_filter = 2
@@ -227,7 +227,7 @@ offset_bottom = 95.0
 mouse_filter = 2
 
 [node name="LivesLabel" type="Label" parent="TopBar/LivesPanel"]
-text = "LIVES"
+text = "生命"
 label_settings = SubResource("LS_top_label")
 horizontal_alignment = 1
 mouse_filter = 2
