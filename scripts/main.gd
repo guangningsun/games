@@ -330,6 +330,13 @@ func _handle_cli_shortcuts() -> void:
 			brick.queue_free()
 		_bricks_remaining = 0
 		GameManager.level_cleared()
+	if "--simulate-next-level" in args:
+		# 测试用：跳到下一关（不显示 CLEAR UI）
+		await get_tree().create_timer(0.3).timeout
+		GameManager.current_level += 1
+		GameManager.level_changed.emit(GameManager.current_level)
+		GameManager._reset_level_time()
+		_load_current_level()
 	if "--simulate-game-over" in args:
 		# 测试用：0.5s 后立即触发 Game Over
 		await get_tree().create_timer(0.5).timeout
