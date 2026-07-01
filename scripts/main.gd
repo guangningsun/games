@@ -314,8 +314,8 @@ func _handle_cli_shortcuts() -> void:
 		for n in 4:
 			_trigger_double_balls()
 		print("[TEST] total balls: ", balls.size())
-		# 等 0.5 秒让球飞起来再截图
-		await get_tree().create_timer(0.5).timeout
+		# 等 1.5 秒让球飞起来再截图
+		await get_tree().create_timer(1.5).timeout
 		var idx: int = args.find("--screenshot")
 		var path: String = "/tmp/m8_multi.png"
 		if idx >= 0 and idx + 1 < args.size():
