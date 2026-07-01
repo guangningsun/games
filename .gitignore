@@ -1,0 +1,24 @@
+# Godot
+.godot/
+*.import
+
+# Web export（产物 + 证书）
+export/web/
+certs/
+
+# 系统/编辑器
+.DS_Store
+*.swp
+*~
+
+# 部署产物
+*.tar.gz
+brick-breaker-web.tar.gz
+*.bak
+*.log
+
+# 部署备份
+backups/
+
+# 不忽略截图（README 用）
+!export/*.png
