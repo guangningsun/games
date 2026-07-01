@@ -8,13 +8,15 @@ extends CharacterBody2D
 ## - 漏球：掉出底部边界时通知
 ##
 ## M5：Sprite2D 像素贴图 + 碰撞音效区分（wall/brick/paddle）
+## M7：砖块缩小，球跟着缩（9 → 8）
+## M8：边界 clamp 防止球卡在墙内 + 最小垂直分量防卡死
 
 signal ball_lost  ## 球掉出底部
 
 @export var base_speed: float = 520.0
 @export var min_horizontal_speed_ratio: float = 0.25
 @export var launch_delay: float = 0.5
-@export var ball_radius: int = 8  ## M7：砖块缩小，球跟着缩（9 → 8）
+@export var ball_radius: int = 8
 
 var is_launched: bool = false
 var _viewport_size: Vector2 = Vector2.ZERO
@@ -32,6 +34,26 @@ func _ready() -> void:
 func _physics_process(_delta: float) -> void:
 	if not is_launched:
 		return
+
+	# === 边界 clamp：防球卡在墙里出不来 ===
+	# 边缘 bug 修：move_and_collide 反弹有时因浮点累积导致球陷入墙内
+	# 每帧先钳位坐标 + 强制反向（不依赖碰撞检测）
+	var r: float = float(ball_radius)
+	if global_position.x < r:
+		global_position.x = r
+		if velocity.x < 0.0:
+			velocity.x = -velocity.x
+	elif global_position.x > _viewport_size.x - r:
+		global_position.x = _viewport_size.x - r
+		if velocity.x > 0.0:
+			velocity.x = -velocity.x
+	if global_position.y < r:
+		global_position.y = r
+		if velocity.y < 0.0:
+			velocity.y = -velocity.y
+	# 防水平球：垂直分量太小时注入偏移，避免球在墙边水平来回弹不出
+	if absf(velocity.y) < 80.0:
+		velocity.y = 80.0 * (1.0 if velocity.y >= 0.0 else -1.0)
 
 	var collision: KinematicCollision2D = move_and_collide(velocity * _delta)
 	if collision:

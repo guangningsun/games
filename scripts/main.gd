@@ -27,11 +27,12 @@ extends Node2D
 @onready var wall_top: StaticBody2D = $Walls/WallTop
 
 const POWERUP_SCENE: PackedScene = preload("res://scenes/entities/power_up.tscn")
+const BALL_SCENE: PackedScene = preload("res://scenes/ball.tscn")  ## M8：用 instantiate 替代 duplicate()（duplicate 不调度 _physics_process）
 
 var _level_loader: LevelLoader = LevelLoader.new()
 var _bricks_remaining: int = 0
-var balls: Array[CharacterBody2D] = []  ## 所有活球（MULTIPLY/ADD_BALLS 技能产生多个）
-const MAX_BALLS: int = 23  ## 多球上限（从 8 提到 23，让多球玩法更爽）
+var balls: Array[CharacterBody2D] = []  ## 所有活球（MULTI/DOUBLE 技能产生多个）
+const MAX_BALLS: int = 50  ## 多球上限（M8 用户要求：DOUBLE_BALLS 翻倍后最多 50 个）
 
 
 func _ready() -> void:
@@ -179,22 +180,20 @@ func _on_brick_destroyed(brick: StaticBody2D, score: int, position: Vector2, bri
 		GameManager.level_cleared()
 
 
-## 按概率生成 PowerUp（M6）
+## 按概率生成 PowerUp（M8 重构：3 种 + 全部绿色）
 func _maybe_spawn_powerup(pos: Vector2, brick_type: int) -> void:
 	var drop_rate: float = BrickConfig.get_powerup_drop_rate(brick_type)
 	if randf() > drop_rate:
 		return
-	# 4 种 PowerUp 均等概率（25% each）
+	# 3 种 PowerUp 均等概率（约 33% each）
 	var roll: float = randf()
 	var pu_type: int
-	if roll < 0.25:
-		pu_type = PowerUp.TYPE_BONUS_SCORE
-	elif roll < 0.50:
+	if roll < 0.333:
 		pu_type = PowerUp.TYPE_EXTEND_PADDLE
-	elif roll < 0.75:
-		pu_type = PowerUp.TYPE_MULTIPLY_BALLS
+	elif roll < 0.666:
+		pu_type = PowerUp.TYPE_MULTI_BALL
 	else:
-		pu_type = PowerUp.TYPE_ADD_BALLS
+		pu_type = PowerUp.TYPE_DOUBLE_BALLS
 	var pu: PowerUp = POWERUP_SCENE.instantiate()
 	pu.setup(pu_type)
 	pu.global_position = pos
@@ -204,27 +203,26 @@ func _maybe_spawn_powerup(pos: Vector2, brick_type: int) -> void:
 
 func _on_powerup_collected(pu_type: int) -> void:
 	match pu_type:
-		PowerUp.TYPE_BONUS_SCORE:
-			GameManager.add_score(500)
-			SoundManager.play_sfx("clear")
 		PowerUp.TYPE_EXTEND_PADDLE:
 			paddle.apply_extend()
 			SoundManager.play_sfx("clear")
-		PowerUp.TYPE_MULTIPLY_BALLS:
-			_trigger_multiply_balls()
+		PowerUp.TYPE_MULTI_BALL:
+			_trigger_multi_ball()
 			SoundManager.play_sfx("clear")
-		PowerUp.TYPE_ADD_BALLS:
-			_trigger_add_balls()
+		PowerUp.TYPE_DOUBLE_BALLS:
+			_trigger_double_balls()
 			SoundManager.play_sfx("clear")
 
 
 # === 多球管理 / 技能触发 ===
 
-## 从 _ball_template 克隆一个新球加入 balls（带 lost 信号连接）
+## 从 BALL_SCENE 实例化一个新球加入 balls（带 lost 信号连接）
 func _clone_ball() -> CharacterBody2D:
 	if balls.size() >= MAX_BALLS:
 		return null
-	var new_ball: CharacterBody2D = _ball_template.duplicate() as CharacterBody2D
+	# M8: 用 PackedScene.instantiate() 替代 _ball_template.duplicate()
+	# duplicate 复制 CharacterBody2D 后 _physics_process 不会被调度（Godot 4 bug/quirk）
+	var new_ball: CharacterBody2D = BALL_SCENE.instantiate() as CharacterBody2D
 	new_ball.global_position = _ball_template.global_position
 	new_ball.velocity = Vector2.ZERO
 	new_ball.is_launched = false
@@ -234,30 +232,32 @@ func _clone_ball() -> CharacterBody2D:
 	return new_ball
 
 
-## MULTIPLY_BALLS：每个活球克隆 1 个（×2）
-func _trigger_multiply_balls() -> void:
+## DOUBLE_BALLS：每个活球克隆 1 个（×2），上限 MAX_BALLS
+func _trigger_double_balls() -> void:
 	if balls.is_empty():
 		return
 	var snapshot: Array[CharacterBody2D] = balls.duplicate()
 	for b in snapshot:
 		if not b.is_launched:
 			continue
+		if balls.size() >= MAX_BALLS:
+			return
 		var original_velocity: Vector2 = b.velocity
 		# 自身稍微偏转
 		b.velocity = original_velocity.rotated(deg_to_rad(-10))
-		# 克隆 1 个
-		for angle_deg in [10.0]:
-			var new_ball: CharacterBody2D = _clone_ball()
-			if new_ball == null:
-				return
-			new_ball.global_position = b.global_position
-			new_ball.velocity = original_velocity.rotated(deg_to_rad(angle_deg))
-			new_ball.is_launched = true
+		var new_ball: CharacterBody2D = _clone_ball()
+		if new_ball == null:
+			return
+		new_ball.global_position = b.global_position
+		new_ball.velocity = original_velocity.rotated(deg_to_rad(10))
+		new_ball.is_launched = true
 
 
-## ADD_BALLS：直接 +2 个新球（从 paddle 出发）
-func _trigger_add_balls() -> void:
+## MULTI_BALL：直接 +2 个新球（从 paddle 出发，散开方向）
+func _trigger_multi_ball() -> void:
 	for i in 2:
+		if balls.size() >= MAX_BALLS:
+			return
 		var new_ball: CharacterBody2D = _clone_ball()
 		if new_ball == null:
 			return
@@ -296,13 +296,33 @@ func _on_next_level_requested() -> void:
 # === 命令行快捷方式（截图 / 自动发射） ===
 
 func _handle_cli_shortcuts() -> void:
-	var args: PackedStringArray = OS.get_cmdline_args()
+	# Godot 4 用 OS.get_cmdline_user_args() 拿 `--` 之后的用户参数（不是 get_cmdline_args）
+	var args: PackedStringArray = OS.get_cmdline_user_args()
 	if "--auto-launch" in args:
 		await get_tree().create_timer(0.5).timeout
 		if not GameManager.is_game_over:
 			for b in balls:
 				if not b.is_launched:
 					b.launch(b.global_position)
+	if "--test-multi" in args:
+		# M8 测试：发射 + 立刻触发 4 次 DOUBLE_BALLS（验证 16 球正确翻倍）
+		await get_tree().create_timer(0.5).timeout
+		for b in balls:
+			if not b.is_launched:
+				b.launch(b.global_position)
+		await get_tree().create_timer(1.5).timeout
+		for n in 4:
+			_trigger_double_balls()
+		print("[TEST] total balls: ", balls.size())
+		# 等 0.5 秒让球飞起来再截图
+		await get_tree().create_timer(0.5).timeout
+		var idx: int = args.find("--screenshot")
+		var path: String = "/tmp/m8_multi.png"
+		if idx >= 0 and idx + 1 < args.size():
+			path = args[idx + 1]
+		_take_screenshot(path)
+		await get_tree().process_frame
+		get_tree().quit()
 	if "--simulate-clear" in args:
 		# 测试用：0.5s 后立即清完所有砖，触发 level_clear 流程
 		await get_tree().create_timer(0.5).timeout
@@ -316,6 +336,24 @@ func _handle_cli_shortcuts() -> void:
 		GameManager.lives = 1  # 只剩 1 条
 		GameManager.lives_changed.emit(1)
 		GameManager.lose_life()  # 触发 Game Over
+	if "--test-powerups" in args:
+		# M8 测试：1 秒后强制 spawn 3 种 PowerUp，1.5 秒后截图（不发射球、不掉砖）
+		await get_tree().create_timer(1.0).timeout
+		for t in [PowerUp.TYPE_EXTEND_PADDLE, PowerUp.TYPE_MULTI_BALL, PowerUp.TYPE_DOUBLE_BALLS]:
+			var pu: PowerUp = POWERUP_SCENE.instantiate()
+			pu.setup(t)
+			pu.global_position = Vector2(120.0 + float(t) * 240.0, 300.0)
+			pu.collected.connect(_on_powerup_collected)
+			add_child(pu)
+		# 截图：--screenshot 参数可选，否则用默认路径
+		await get_tree().create_timer(0.5).timeout
+		var idx: int = args.find("--screenshot")
+		var path: String = "/tmp/m8_powerups.png"
+		if idx >= 0 and idx + 1 < args.size():
+			path = args[idx + 1]
+		_take_screenshot(path)
+		await get_tree().process_frame
+		get_tree().quit()
 	if "--screenshot" in args:
 		var wait_sec: float = 0.8
 		var wait_idx: int = args.find("--screenshot-after")
