@@ -11,7 +11,7 @@ signal replay_requested
 signal next_level_requested
 signal revive_requested
 
-const VERSION_LABEL: String = "v0.8.0"
+const VERSION_LABEL: String = "v0.9.0"
 
 @onready var _score_value: Label = $TopBar/ScorePanel/ScoreValue
 @onready var _time_value: Label = $TopBar/TimePanel/TimeValue

@@ -2,20 +2,24 @@ class_name BrickConfig
 extends RefCounted
 ## BrickConfig —— 砖块类型与属性定义
 ##
+## M9 重构：加 TYPE_UNBREAKABLE（关卡 2 底部不可消除墙）
 ## M8 重构：PowerUp 掉率降低（原 NORMAL 30%/GOLD 100% 太频繁）
 ##
 ## pattern 字符映射：
 ##   0 = 空
 ##   1 = NORMAL（绿色，普通分）
 ##   2 = GOLD（金色，高分+高掉率）
+##   3 = UNBREAKABLE（深灰色墙，无限 HP，球撞反弹）
 ##
 ## PowerUp 掉率（M8 调整）：
 ##   NORMAL: 8%（每打掉一个普通砖 8% 概率掉道具）
 ##   GOLD:   35%（金色砖 35% 概率掉道具）
+##   UNBREAKABLE: 0%（不可消除，不掉道具）
 
 const TYPE_EMPTY := 0
 const TYPE_NORMAL := 1       ## 1 HP，绿色，普通方块
 const TYPE_GOLD := 2         ## 1 HP，金色，高分+高掉率
+const TYPE_UNBREAKABLE := 3  ## 99999 HP，深灰墙，不可消除
 
 const STATS := {
 	TYPE_NORMAL: {
@@ -29,6 +33,12 @@ const STATS := {
 		"score": 100,
 		"color": Color(0.95, 0.85, 0.30),
 		"powerup_drop_rate": 0.35,
+	},
+	TYPE_UNBREAKABLE: {
+		"hp": 99999,
+		"score": 0,
+		"color": Color(0.45, 0.45, 0.55),
+		"powerup_drop_rate": 0.0,
 	},
 }
 

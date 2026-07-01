@@ -43,6 +43,9 @@ func _ready() -> void:
 
 
 func take_damage(damage: int = 1) -> void:
+	# M9: UNBREAKABLE 墙不受任何伤害（球撞反弹但不消失）
+	if brick_type == BrickConfig.TYPE_UNBREAKABLE:
+		return
 	current_hp -= damage
 	if current_hp <= 0:
 		# 销毁时传出位置 + 类型，让 Main 生成对应颜色的粒子

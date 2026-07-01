@@ -14,12 +14,14 @@ extends RefCounted
 ##   "brick_width": 32, "brick_height": 24,
 ##   "brick_gap": 2,                      // 砖块间距
 ##   "origin_x": 21, "origin_y": 160,    // 左上角起始位置（可选，未设则自动居中）
-##   "pattern": [                        // 8 行字符串，每字符 = 一个格子
-##     "11111111111111111111",
-##     ...
-##   ]
+##   "pattern": [...],                   // 8 行字符串，每字符 = 一个格子
+##   "unbreakable_walls": {              // M9 底部不可消除墙（可选）
+##     "y": 510,                         // 墙中心 y 坐标
+##     "empty_start": 17,                // 空隙起始列（从 0 计）
+##     "empty_count": 6                  // 空隙连续列数
+##   }
 ## }
-## pattern 字符：0=空, 1=NORMAL, 2=REINFORCED, 3=STEEL, 4=GOLD
+## pattern 字符：0=空, 1=NORMAL, 2=GOLD, 3=UNBREAKABLE
 ##
 ## 返回：生成的 Brick 数量
 
@@ -68,6 +70,16 @@ func load_level(json_path: String, container: Node2D, viewport_width: float = DE
 	print("[LevelLoader] Loading '%s' (%dx%d bricks)" % [level_name, rows, cols])
 
 	var brick_count: int = 0
+	# M9: 加载不可消除墙（如果有）
+	var walls_data: Variant = dict.get("unbreakable_walls", null)
+	if walls_data != null and typeof(walls_data) == TYPE_DICTIONARY:
+		var wall_y: float = float(walls_data.get("y", 0.0))
+		var empty_start: int = int(walls_data.get("empty_start", -1))
+		var empty_count: int = int(walls_data.get("empty_count", 0))
+		var wall_count: int = _spawn_unbreakable_walls(
+			container, ox, bw, gap, wall_y, cols, empty_start, empty_count
+		)
+		print("[LevelLoader] Generated %d unbreakable wall segments" % wall_count)
 	for r in rows:
 		var row_str: String = pattern[r]
 		if row_str.length() != cols:
@@ -101,3 +113,45 @@ func load_level(json_path: String, container: Node2D, viewport_width: float = DE
 
 func _on_brick_destroyed(brick: StaticBody2D, score: int, position: Vector2, brick_type: int) -> void:
 	brick_destroyed.emit(brick, score, position, brick_type)
+
+
+## M9: 生成底部不可消除墙（中间空几格让球掉出去）
+##
+## 参数：
+##   container: 父节点
+##   ox: 砖块 x 起点（左上角）
+##   bw: 砖块宽
+##   gap: 砖块间距
+##   wall_y: 墙中心 y
+##   total_cols: 总列数（40）
+##   empty_start: 空隙起始列（-1 表示无空隙）
+##   empty_count: 空隙连续列数
+## 返回：生成的墙段数
+func _spawn_unbreakable_walls(
+	container: Node2D,
+	ox: float,
+	bw: float,
+	gap: float,
+	wall_y: float,
+	total_cols: int,
+	empty_start: int,
+	empty_count: int
+) -> int:
+	var count: int = 0
+	for c in total_cols:
+		# 跳过空隙列
+		if empty_start >= 0 and c >= empty_start and c < empty_start + empty_count:
+			continue
+		var wall: StaticBody2D = BRICK_SCENE.instantiate()
+		wall.brick_type = BrickConfig.TYPE_UNBREAKABLE
+		wall.custom_size = Vector2(bw, bw * 0.75)  # 墙比砖块矮一点（视觉区分）
+		# 但与方块"等大小"——按用户原意用方块同高 bh=12
+		wall.custom_size = Vector2(bw, 12.0)
+		wall.position = Vector2(
+			ox + c * (bw + gap) + bw * 0.5,
+			wall_y
+		)
+		# UNBREAKABLE 不连接 destroyed 信号（避免被销毁时调用）
+		container.add_child(wall)
+		count += 1
+	return count
